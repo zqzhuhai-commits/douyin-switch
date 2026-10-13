@@ -1,12 +1,14 @@
 # 抖音 Switch 测试项目
 
-## 原生播放器 v0.3.0 · 实时接口实验版
+## 原生播放器 v0.3.1 · 内置访客配置实验版
 
-[下载原生版 NSP](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.3.0-test.nsp) · [完整测试包](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.3.0-test.zip) · [使用说明与源码](native/README.md)
+[下载内置版 NSP](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.3.1-embedded.nsp) · [完整测试包](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.3.1-embedded.zip) · [使用说明与源码](native/README.md)
 
-Switch 端自绘界面、本机播放、动态生成 A-Bogus/Web Signature，直连抖音推荐与详情接口。接近末尾按需加载下一批，支持触摸/手柄切换及自动连播。首次安装需要把单独提供的私人 douyin-session.json 放到 SD 卡 /switch/douyin-native/；运行期间不需要电脑。
+直接安装 NSP，从 HOME 启动，无需手动复制 JSON。首次自动读取内置访客参数并保存到 SD 卡，之后优先使用本地更新的配置；缺失或损坏时回退到内置参数。
 
-**已通过离线签名交叉校验、HAR 数据解析、编译及安装包完整性检查；尚未完成线上请求接受验证与 Switch 实机播放。** 按实验版使用，不代表已确认可持续获取推荐。访客配置、HAR 和旧签名不包含在公开安装包或仓库中。没有历史示例回退。
+按用户明确授权，本版公开了内置普通访客参数。不含账号登录 Cookie、密码、HAR 原文件或抓包旧签名。访客参数可能失效，内置并不保证永久有效。
+
+Switch 本机动态生成签名并请求推荐/详情，接近末尾按需加载，支持触摸/手柄切换与自动连播。**已通过配置加载测试、离线协议验证、编译及安装包完整性检查；线上接受与 Switch 实机播放仍待验证。**
 
 ---
 

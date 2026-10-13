@@ -68,9 +68,9 @@ LIBS	:= -Wl,--start-group -l:libpostproc.a -l:liblzma.a -l:libavutil.a -l:libbz2
 # include and lib
 #---------------------------------------------------------------------------------
 LIBDIRS	:= $(PORTLIBS) $(LIBNX)
-APP_TITLE := 抖音原生播放器（测试）
+APP_TITLE := 抖音原生播放器（内置版）
 APP_AUTHOR := Homebrew
-APP_VERSION := 0.1.5
+APP_VERSION := 0.3.1
 APP_TITLEID := 0100D0A11A020000
 
 

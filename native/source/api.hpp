@@ -114,11 +114,21 @@ class Api {
    out.push_back({stableId(name),"本地",name,"",path+name});
   }closedir(dir);std::sort(out.begin(),out.end(),[](const Video&a,const Video&b){return a.title<b.title;});return out;
  }
+ static bool validSession(const json&cfg){
+  return cfg.is_object()&&cfg.contains("user_agent")&&cfg["user_agent"].is_string()&&!cfg["user_agent"].get<std::string>().empty()
+   &&cfg.contains("params")&&cfg["params"].is_array()&&cfg.contains("visitor")&&cfg["visitor"].is_object()
+   &&cfg["visitor"].contains("uifid")&&cfg["visitor"]["uifid"].is_string()&&!cfg["visitor"]["uifid"].get<std::string>().empty();
+ }
  static json session(){
-  auto text=readFile("sdmc:/switch/douyin-native/douyin-session.json");
-  if(text.empty())text=readFile("sdmc:/switch/douyin-native/douyin-session.json.bak");
-  if(text.empty())throw std::runtime_error("缺少访客配置：复制 douyin-session.json 后按 Y");
-  return json::parse(text);
+  for(const char*path:{"sdmc:/switch/douyin-native/douyin-session.json","sdmc:/switch/douyin-native/douyin-session.json.bak","romfs:/visitor-seed.json"}){
+   try{
+    auto text=readFile(path);if(text.empty())continue;
+    auto cfg=json::parse(text);if(!validSession(cfg))continue;
+    if(std::string(path)=="romfs:/visitor-seed.json")saveSession(cfg);
+    return cfg;
+   }catch(const std::exception&){continue;}
+  }
+  throw std::runtime_error("访客配置不可用，请重新安装内置配置版本");
  }
  static void saveSession(const json&cfg){
   const std::string target="sdmc:/switch/douyin-native/douyin-session.json",tmp=target+".tmp";

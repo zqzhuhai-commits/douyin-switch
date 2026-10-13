@@ -1,1 +1,1 @@
-46a48414d6f09b9232cd3cf2638e556dbe69fc839cd4c77467c70985f808f15b  DouyinNativeSwitch-0.3.0-test.nsp
+324e4145e93bcb2730d369155fb7d09f9251be78c9d8cd8c44bd3343110f7e5c  DouyinNativeSwitch-0.3.1-embedded.nsp
