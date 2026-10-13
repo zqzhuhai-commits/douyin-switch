@@ -4,7 +4,7 @@
 
 ## 下载和安装
 
-前往 [Releases](../../releases) 下载 `DouyinSwitch-0.1.0-test.nsp`，安装后从 HOME 菜单启动。仅适用于可安装自制 NSP 的 Switch。
+直接下载 [DouyinSwitch-0.1.0-test.nsp](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinSwitch-0.1.0-test.nsp)，安装后从 HOME 菜单启动。仅适用于可安装自制 NSP 的 Switch。
 
 ## 操作
 
