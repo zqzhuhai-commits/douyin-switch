@@ -1,0 +1,8 @@
+build/
+package/
+*.elf
+*.nacp
+*.nro
+*.map
+*.lst
+*.keys

@@ -1,0 +1,1 @@
+^https://([0-9A-Za-z\-]+\.)*(douyin\.com|douyin\.net|douyinvod\.com|bytedance\.com|byteimg\.com|bytecdn\.cn|iesdouyin\.com|snssdk\.com|amemv\.com)(/|$)

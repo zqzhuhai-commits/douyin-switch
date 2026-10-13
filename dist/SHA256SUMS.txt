@@ -1,0 +1,2 @@
+f915e68e95daa30f698d550ef5a3ec9824edbc1feec67cc1e5140bb3bb0088d7  DouyinSwitch-0.1.0-test.nsp
+fba156b711fd857391c55f27f5b58c3113259d76663ded213195b92119c9a068  DouyinSwitch-0.1.0-test.zip
