@@ -2,6 +2,7 @@
 #include <curl/curl.h>
 #include "diagnostics.hpp"
 #include "categories.hpp"
+#include "feed_refresh.hpp"
 #ifdef __SWITCH__
 #include "tls_compat.hpp"
 #endif
@@ -13,15 +14,17 @@
 #include <stdexcept>
 #include <algorithm>
 #include <dirent.h>
+#include <cstdio>
+#include <cerrno>
 using json = nlohmann::json;
 struct Video { std::string id, user, title, cover, url; };
-struct VideoPage {std::vector<Video> videos;bool rawEmpty=false;};
+struct VideoPage {std::vector<Video> videos;bool rawEmpty=false;std::string note;};
 inline std::string readFile(const std::string& p) { std::ifstream f(p, std::ios::binary); return {std::istreambuf_iterator<char>(f), {}}; }
 struct NetworkError : std::runtime_error { using std::runtime_error::runtime_error; };
 class Api {
  public:
  static constexpr const char* userAgent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
- std::string base="https://www.douyin.com",feed;
+ std::string base="https://www.douyin.com",feed="https://raw.githubusercontent.com/zyronon/douyin/master/src/assets/data/posts6.json";
  std::atomic<bool> cancel{false};
  static std::string stableId(const std::string& value){uint64_t h=14695981039346656037ULL;for(unsigned char c:value){h^=c;h*=1099511628211ULL;}return std::to_string(h);}
  static bool remote(const std::string& url){return url.rfind("https://",0)==0||url.rfind("http://",0)==0;}
@@ -46,18 +49,47 @@ class Api {
 #endif
   diagnostic("network",reason);throw NetworkError(reason);}if(status!=200){auto reason="HTTP "+std::to_string(status);diagnostic("network",reason);if(status==401||status==403)throw std::runtime_error(reason);throw NetworkError(reason);}return out;
  }
+ static std::string firstUrl(const json& value){
+  if(value.is_string())return value.get<std::string>();
+  if(value.is_object()&&value.contains("url_list"))return firstUrl(value.at("url_list"));
+  if(value.is_array())for(const auto& x:value)if(x.is_string()&&!x.get<std::string>().empty())return x.get<std::string>();
+  return {};
+ }
  static std::vector<Video> parseList(const json& data){
   std::vector<Video> out;
-  const json& list=data.is_array()?data:data.at("list");
-  for(const auto& x:list){
-   auto url=x.value("url",x.value("mv_play_url",std::string()));
+  const json* list=&data;
+  if(data.is_object()){
+   if(data.contains("list"))list=&data.at("list");
+   else if(data.contains("aweme_list"))list=&data.at("aweme_list");
+   else if(data.contains("item_list"))list=&data.at("item_list");
+   else throw std::runtime_error("JSON 无视频列表");
+  }
+  if(!list->is_array())throw std::runtime_error("JSON 列表格式错误");
+  for(const auto& x:*list){
+   if(!x.is_object())continue;
+   std::string url,title,author,cover,original;
+   if(x.contains("video")&&x.at("video").is_object()){
+    const auto& video=x.at("video");
+    if(video.contains("play_addr"))url=firstUrl(video.at("play_addr"));
+    original=x.value("aweme_id",std::string());title=x.value("desc",std::string("抖音视频"));
+    if(x.contains("author")&&x.at("author").is_object())author=x.at("author").value("nickname",std::string());
+    if(video.contains("cover"))cover=firstUrl(video.at("cover"));
+    if(!cover.empty()&&!remote(cover)&&cover.find('/')==std::string::npos&&cover.find("..") == std::string::npos)
+     cover="https://raw.githubusercontent.com/zyronon/douyin/master/public/images/"+cover;
+   }else{
+    url=x.value("url",x.value("mv_play_url",std::string()));
+    original=x.value("id",x.value("mv_id",url));title=x.value("title",x.value("mv_title",std::string("抖音视频")));
+    author=x.value("author",x.value("mu_id",std::string()));cover=x.value("cover",x.value("mv_img_url",std::string()));
+   }
    if(!media(url))continue;
-   auto original=x.value("id",x.value("mv_id",url));
    auto id=original;
-   if(id.empty()||id.size()>64||!std::all_of(id.begin(),id.end(),[](unsigned char c){return std::isalnum(c)||c=='_'||c=='-';}))id=stableId(original);
-   out.push_back({id,x.value("author",x.value("mu_id",std::string())),x.value("title",x.value("mv_title",std::string("抖音视频"))),remote(x.value("cover",x.value("mv_img_url",std::string())))?x.value("cover",x.value("mv_img_url",std::string())):std::string(),url});
+   if(id.empty()||id.size()>64||!std::all_of(id.begin(),id.end(),[](unsigned char c){return std::isalnum(c)||c=='_'||c=='-';}))id=stableId(original.empty()?url:original);
+   out.push_back({id,author,title,remote(cover)?cover:std::string(),url});
   }return out;
  }
+ static std::vector<Video> readPlaylist(const std::string& path){try{auto s=readFile(path);if(s.empty())return {};return parseList(json::parse(s));}catch(...){return {};}}
+ static json encodeList(const std::vector<Video>& videos){json list=json::array();for(const auto&v:videos)list.push_back({{"id",v.id},{"title",v.title},{"author",v.user},{"cover",v.cover},{"url",v.url}});return {{"list",list}};}
+
  static std::vector<Video> localVideos(){
   std::vector<Video> out;const std::string path="sdmc:/switch/douyin-native/videos/";
   DIR* dir=opendir(path.c_str());if(!dir)return out;
@@ -68,17 +100,37 @@ class Api {
   }closedir(dir);std::sort(out.begin(),out.end(),[](const Video&a,const Video&b){return a.title<b.title;});return out;
  }
  VideoPage listPage(int tab,int page){
-  if(page>1)return {{},true};
-  if(tab==Category::All)return {localVideos(),false};
-  auto text=feed.empty()?readFile("sdmc:/switch/douyin-native/playlist.json"):request(feed);
-  if(text.empty())return {{},true};
-  auto videos=parseList(json::parse(text));return {videos,videos.empty()};
+  if(page>1)return {{},true,{}};
+  if(tab==Category::All){auto v=localVideos();return {v,v.empty(),"本地视频"};}
+  auto updated=refreshFeed<Video>([&]{
+    try{return parseList(json::parse(request(feed)));}catch(const std::exception&e){diagnostic("feed-refresh",e.what());throw;}
+   },[]{auto v=readPlaylist("sdmc:/switch/douyin-native/feed-cache.json");if(v.empty())v=readPlaylist("sdmc:/switch/douyin-native/feed-cache.json.bak");return v;},
+   []{return readPlaylist("romfs:/builtin.json");},[](const auto& videos){
+    const std::string cache="sdmc:/switch/douyin-native/feed-cache.json",tmp=cache+".tmp";
+    std::ofstream f(tmp,std::ios::binary);auto data=encodeList(videos).dump();f.write(data.data(),data.size());f.close();
+    if(!f)throw std::runtime_error("cache write failed");
+    if(std::rename(tmp.c_str(),cache.c_str())!=0){
+     if(errno!=EEXIST)throw std::runtime_error("cache rename failed");
+     const auto backup=cache+".bak";
+     std::remove(backup.c_str());
+     if(std::rename(cache.c_str(),backup.c_str())!=0)throw std::runtime_error("cache backup failed");
+     if(std::rename(tmp.c_str(),cache.c_str())!=0){std::rename(backup.c_str(),cache.c_str());throw std::runtime_error("cache replace failed");}
+     std::remove(backup.c_str());
+    }
+   });
+  auto videos=std::move(updated.videos);auto note=updated.note;
+  for(const auto&v:readPlaylist("sdmc:/switch/douyin-native/playlist.json")){
+   auto it=std::find_if(videos.begin(),videos.end(),[&](const Video& x){return x.id==v.id;});
+   if(it==videos.end())videos.push_back(v);else *it=v;
+  }
+  return {videos,videos.empty(),note};
  }
+
  std::string detail(const Video& v){
   if(!media(v.url))throw std::runtime_error("无有效媒体地址，请重新导入播放列表");
-  if(remote(v.url)){
-   auto text=readFile("sdmc:/switch/douyin-native/playlist.json");
-   if(!text.empty())try{for(const auto& x:parseList(json::parse(text)))if(x.id==v.id)return x.url;}catch(...){}
-  }return v.url;
+  if(remote(v.url))for(const char* path:{"sdmc:/switch/douyin-native/playlist.json","sdmc:/switch/douyin-native/feed-cache.json"}){
+   for(const auto&x:readPlaylist(path))if(x.id==v.id)return x.url;
+  }
+  return v.url;
  }
 };

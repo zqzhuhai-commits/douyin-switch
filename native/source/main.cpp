@@ -30,7 +30,7 @@ static std::vector<Video> load(const std::string& p){try{return Api::parseList(j
 static std::string clockText(double n){if(!std::isfinite(n)||n<0)n=0;int a=n;char s[32];snprintf(s,sizeof(s),"%02d:%02d:%02d",a/3600,(a/60)%60,a%60);return s;}
 int main(int argc,char** argv){
  romfsInit();mkdir("sdmc:/switch",0777);mkdir("sdmc:/switch/douyin-native",0777);mkdir((root+"cache").c_str(),0777);mkdir((root+"videos").c_str(),0777);
- std::ofstream(root+"playback.log",std::ios::trunc)<<"DouyinNativeSwitch 0.2.0\n";
+ std::ofstream(root+"playback.log",std::ios::trunc)<<"DouyinNativeSwitch 0.2.1\n";
  diagnostic("startup","starting");
  socketInitializeDefault();sslInitialize(4);curl_global_init(CURL_GLOBAL_DEFAULT);plInitialize(PlServiceType_User);
  diagnostic("network-backend",curl_version());
@@ -52,8 +52,8 @@ int main(int argc,char** argv){
   if(mpv_initialize(mp)<0){throw std::runtime_error("Player startup failed");}
   mpv_opengl_init_params gl={proc,nullptr};const char* gltype=MPV_RENDER_API_TYPE_OPENGL;mpv_render_param params[]={{MPV_RENDER_PARAM_API_TYPE,(void*)gltype},{MPV_RENDER_PARAM_OPENGL_INIT_PARAMS,&gl},{MPV_RENDER_PARAM_INVALID,nullptr}};if(mpv_render_context_create(&render,mp,params)<0)throw std::runtime_error("Video renderer unavailable");
   padConfigureInput(1,HidNpadStyleSet_NpadStandard);PadState pad;padInitializeDefault(&pad);hidInitializeTouchScreen();
-  std::vector<Video> items=load(root+"hot.json"),favorites=load(root+"favorites.json");if(items.empty())items=load("romfs:/hot.json");std::map<std::string,Tex> covers;
-  int tab=Category::Hot,selected=0;SmoothScroll scroll;Catalog catalog;int catalogGeneration=0,listGeneration=0,listPage=1;uint64_t loadAt=0,lastFrame=now();std::string catalogError;std::shared_ptr<Api> listApi;bool loading=false,playing=false,menu=false,paused=false,quitting=false;PlaybackRecovery recovery;bool playbackFailed=false,fileLoaded=false;double position=0,duration=0,volume=100,resumeAfterDetail=0;uint64_t controlsUntil=0,repeatAt=0;u64 navHeld=0;std::string status="正在更新列表…",playerStatus,activeUrl,lastPlayerError;Video active;
+  std::vector<Video> items=load(root+"hot.json"),favorites=load(root+"favorites.json");if(items.empty())items=load("romfs:/builtin.json");std::map<std::string,Tex> covers;
+  int tab=Category::Hot,selected=0;SmoothScroll scroll;Catalog catalog;int catalogGeneration=0,listGeneration=0,listPage=1;uint64_t loadAt=0,lastFrame=now();std::string catalogError,refreshNote;std::shared_ptr<Api> listApi;bool loading=false,playing=false,menu=false,paused=false,quitting=false;PlaybackRecovery recovery;bool playbackFailed=false,fileLoaded=false;double position=0,duration=0,volume=100,resumeAfterDetail=0;uint64_t controlsUntil=0,repeatAt=0;u64 navHeld=0;std::string status="正在更新列表…",playerStatus,activeUrl,lastPlayerError;Video active;
   bool autoplay=true,portrait=false,advanceQueued=false,advanceManual=false,waitingForCatalog=false,waitAutomatic=true,awaitingStart=true;int64_t playbackEntry=-1;int queueIndex=-1,queueTab=0;std::vector<Video> queue;std::set<std::string> queuedIds;
   bool barDragging=false,gridTouch=false,touchMoved=false;float barOffset=0,touchX=0,touchY=0;int touchItem=-1;
   try{auto prefs=json::parse(readFile(root+"player-settings.json"));autoplay=prefs.value("autoplay",true);portrait=prefs.value("portrait",false);}catch(...){}
@@ -69,7 +69,7 @@ int main(int argc,char** argv){
   auto catalogStatus=[&]{auto count=std::to_string(items.size());
    if(tab==Category::Favorites)return std::string("收藏保存在本机，共 ")+count+" 个视频";
    if(!catalogError.empty())return "加载中断，已保留 "+count+" 个视频："+catalogError+"；Y 继续";
-   if(catalog.done)return catalog.exhausted?"导入完成，共 "+count+" 个视频":"已加载 "+count+" 个视频；网站连续返回无新增内容";
+   if(catalog.done)return refreshNote+"，共 "+count+" 个视频";
    return "正在读取视频列表："+count+" 个，已加载 "+std::to_string(catalog.pagesLoaded)+" 页";
   };
   auto fetch=[&]{if(loading||tab==Category::Favorites||catalog.done||!catalogError.empty())return;
@@ -80,7 +80,7 @@ int main(int argc,char** argv){
   auto resetCatalog=[&]{catalogGeneration++;if(listApi)listApi->cancel=true;catalog.reset();catalogError.clear();loadAt=0;status=catalogStatus();fetch();};
   auto switchTab=[&](int t){cacheCatalog();tab=(t+3)%3;selected=0;scroll.reset();failedCovers.clear();
    if(tab==Category::Favorites)items=favorites;
-   else{items=load(root+Category::cacheFile(tab));if(items.empty())items=load("romfs:/"+std::string(Category::cacheFile(tab)));}
+   else{items=load(root+Category::cacheFile(tab));if(items.empty()&&tab==Category::Hot)items=load("romfs:/builtin.json");}
    resetCatalog();
   };fetch();
   bool playTouch=false,playSeeking=false,tapControls=false;float playTouchX=0,playTouchY=0;
@@ -125,7 +125,7 @@ int main(int argc,char** argv){
    if(loading&&listJob.wait_for(std::chrono::seconds(0))==std::future_status::ready){
     loading=false;
     try{auto result=listJob.get();if(listGeneration==catalogGeneration&&tab<Category::Favorites){
-     auto added=catalog.accept(listPage,result.videos,result.rawEmpty);
+     auto added=catalog.accept(listPage,result.videos,result.rawEmpty);if(!result.note.empty())refreshNote=result.note;
      if(listPage==1){items.clear();selected=0;scroll.reset();gridTouch=barDragging=false;touchMoved=true;}
      items.insert(items.end(),added.begin(),added.end());
      if(playing&&queueTab==tab){for(const auto& v:added)if(queuedIds.insert(v.id).second)queue.push_back(v);}

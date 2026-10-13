@@ -1,12 +1,12 @@
 # 抖音 Switch 测试项目
 
-## 原生播放器 v0.2.0
+## 原生播放器 v0.2.1
 
-[下载原生版 NSP](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.2.0-test.nsp) · [下载完整测试包](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.2.0-test.zip) · [原生版使用说明与源码](native/README.md)
+[下载原生版 NSP](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.2.1-test.nsp) · [下载完整测试包](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.2.1-test.zip) · [原生版使用说明与源码](native/README.md)
 
 原生版采用自绘界面和本机播放引擎，支持平滑触摸滚动、播放时上下滑/手柄 L/R 切换、自动连播、进度调整、画面旋转和本机收藏。
 
-**尚未接通抖音实时推荐流。** 可用本地视频、媒体直链或 HAR 导入列表测试。已通过编译、相关逻辑测试和安装包完整性检查，尚未进行 Switch 实机验证。
+**每次启动自动更新公开 JSON，内置 6 条历史示例，更新失败回退到缓存或内置列表。尚未接通抖音实时推荐流，示例媒体地址尚未验证有效。** 可继续使用本地视频、媒体直链或 HAR 导入列表。已通过编译、相关逻辑测试和安装包完整性检查，尚未进行 Switch 实机验证。
 
 ---
 
