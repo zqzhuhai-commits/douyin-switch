@@ -1,12 +1,12 @@
 # 抖音 Switch 测试项目
 
-## 原生播放器 v0.2.1
+## 原生播放器 v0.3.0 · 实时接口实验版
 
-[下载原生版 NSP](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.2.1-test.nsp) · [下载完整测试包](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.2.1-test.zip) · [原生版使用说明与源码](native/README.md)
+[下载原生版 NSP](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.3.0-test.nsp) · [完整测试包](https://github.com/zqzhuhai-commits/douyin-switch/raw/refs/heads/main/dist/DouyinNativeSwitch-0.3.0-test.zip) · [使用说明与源码](native/README.md)
 
-原生版采用自绘界面和本机播放引擎，支持平滑触摸滚动、播放时上下滑/手柄 L/R 切换、自动连播、进度调整、画面旋转和本机收藏。
+Switch 端自绘界面、本机播放、动态生成 A-Bogus/Web Signature，直连抖音推荐与详情接口。接近末尾按需加载下一批，支持触摸/手柄切换及自动连播。首次安装需要把单独提供的私人 douyin-session.json 放到 SD 卡 /switch/douyin-native/；运行期间不需要电脑。
 
-**每次启动自动更新公开 JSON，内置 6 条历史示例，更新失败回退到缓存或内置列表。尚未接通抖音实时推荐流，示例媒体地址尚未验证有效。** 可继续使用本地视频、媒体直链或 HAR 导入列表。已通过编译、相关逻辑测试和安装包完整性检查，尚未进行 Switch 实机验证。
+**已通过离线签名交叉校验、HAR 数据解析、编译及安装包完整性检查；尚未完成线上请求接受验证与 Switch 实机播放。** 按实验版使用，不代表已确认可持续获取推荐。访客配置、HAR 和旧签名不包含在公开安装包或仓库中。没有历史示例回退。
 
 ---
 

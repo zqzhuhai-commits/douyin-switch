@@ -30,7 +30,7 @@ static std::vector<Video> load(const std::string& p){try{return Api::parseList(j
 static std::string clockText(double n){if(!std::isfinite(n)||n<0)n=0;int a=n;char s[32];snprintf(s,sizeof(s),"%02d:%02d:%02d",a/3600,(a/60)%60,a%60);return s;}
 int main(int argc,char** argv){
  romfsInit();mkdir("sdmc:/switch",0777);mkdir("sdmc:/switch/douyin-native",0777);mkdir((root+"cache").c_str(),0777);mkdir((root+"videos").c_str(),0777);
- std::ofstream(root+"playback.log",std::ios::trunc)<<"DouyinNativeSwitch 0.2.1\n";
+ std::ofstream(root+"playback.log",std::ios::trunc)<<"DouyinNativeSwitch 0.3.0\n";
  diagnostic("startup","starting");
  socketInitializeDefault();sslInitialize(4);curl_global_init(CURL_GLOBAL_DEFAULT);plInitialize(PlServiceType_User);
  diagnostic("network-backend",curl_version());
@@ -52,7 +52,7 @@ int main(int argc,char** argv){
   if(mpv_initialize(mp)<0){throw std::runtime_error("Player startup failed");}
   mpv_opengl_init_params gl={proc,nullptr};const char* gltype=MPV_RENDER_API_TYPE_OPENGL;mpv_render_param params[]={{MPV_RENDER_PARAM_API_TYPE,(void*)gltype},{MPV_RENDER_PARAM_OPENGL_INIT_PARAMS,&gl},{MPV_RENDER_PARAM_INVALID,nullptr}};if(mpv_render_context_create(&render,mp,params)<0)throw std::runtime_error("Video renderer unavailable");
   padConfigureInput(1,HidNpadStyleSet_NpadStandard);PadState pad;padInitializeDefault(&pad);hidInitializeTouchScreen();
-  std::vector<Video> items=load(root+"hot.json"),favorites=load(root+"favorites.json");if(items.empty())items=load("romfs:/builtin.json");std::map<std::string,Tex> covers;
+  std::vector<Video> items=load(root+"live-hot.json"),favorites=load(root+"favorites.json");std::map<std::string,Tex> covers;
   int tab=Category::Hot,selected=0;SmoothScroll scroll;Catalog catalog;int catalogGeneration=0,listGeneration=0,listPage=1;uint64_t loadAt=0,lastFrame=now();std::string catalogError,refreshNote;std::shared_ptr<Api> listApi;bool loading=false,playing=false,menu=false,paused=false,quitting=false;PlaybackRecovery recovery;bool playbackFailed=false,fileLoaded=false;double position=0,duration=0,volume=100,resumeAfterDetail=0;uint64_t controlsUntil=0,repeatAt=0;u64 navHeld=0;std::string status="正在更新列表…",playerStatus,activeUrl,lastPlayerError;Video active;
   bool autoplay=true,portrait=false,advanceQueued=false,advanceManual=false,waitingForCatalog=false,waitAutomatic=true,awaitingStart=true;int64_t playbackEntry=-1;int queueIndex=-1,queueTab=0;std::vector<Video> queue;std::set<std::string> queuedIds;
   bool barDragging=false,gridTouch=false,touchMoved=false;float barOffset=0,touchX=0,touchY=0;int touchItem=-1;
@@ -70,17 +70,17 @@ int main(int argc,char** argv){
    if(tab==Category::Favorites)return std::string("收藏保存在本机，共 ")+count+" 个视频";
    if(!catalogError.empty())return "加载中断，已保留 "+count+" 个视频："+catalogError+"；Y 继续";
    if(catalog.done)return refreshNote+"，共 "+count+" 个视频";
-   return "正在读取视频列表："+count+" 个，已加载 "+std::to_string(catalog.pagesLoaded)+" 页";
+   return refreshNote.empty()?"正在请求实时推荐…":refreshNote+"，共 "+count+" 个视频";
   };
   auto fetch=[&]{if(loading||tab==Category::Favorites||catalog.done||!catalogError.empty())return;
    loading=true;listPage=catalog.nextPage;listGeneration=catalogGeneration;int t=tab,p=listPage;
-   listApi=std::make_shared<Api>();listApi->base=api.base;listApi->feed=api.feed;auto worker=listApi;status=catalogStatus();
+   listApi=std::make_shared<Api>();listApi->base=api.base;listApi->feed=api.feed;for(const auto&v:items)listApi->seen.push_back(v.id);auto worker=listApi;status=catalogStatus();
    listJob=std::async(std::launch::async,[worker,t,p]{return worker->listPage(t,p);});
   };
   auto resetCatalog=[&]{catalogGeneration++;if(listApi)listApi->cancel=true;catalog.reset();catalogError.clear();loadAt=0;status=catalogStatus();fetch();};
   auto switchTab=[&](int t){cacheCatalog();tab=(t+3)%3;selected=0;scroll.reset();failedCovers.clear();
    if(tab==Category::Favorites)items=favorites;
-   else{items=load(root+Category::cacheFile(tab));if(items.empty()&&tab==Category::Hot)items=load("romfs:/builtin.json");}
+   else{items=load(root+Category::cacheFile(tab));}
    resetCatalog();
   };fetch();
   bool playTouch=false,playSeeking=false,tapControls=false;float playTouchX=0,playTouchY=0;
@@ -129,14 +129,15 @@ int main(int argc,char** argv){
      if(listPage==1){items.clear();selected=0;scroll.reset();gridTouch=barDragging=false;touchMoved=true;}
      items.insert(items.end(),added.begin(),added.end());
      if(playing&&queueTab==tab){for(const auto& v:added)if(queuedIds.insert(v.id).second)queue.push_back(v);}
-     status=catalogStatus();loadAt=now()+150;
-     if(catalog.done)cacheCatalog();
+     status=catalogStatus();loadAt=now()+2000;
+     cacheCatalog();
      if(waitingForCatalog){if(nextPlaybackIndex(queueIndex,queue.size())){waitingForCatalog=false;advanceQueued=true;advanceManual=!waitAutomatic;}
       else if(catalog.done){waitingForCatalog=false;playerStatus="列表已播完：A 重播，B 返回";controlsUntil=now()+86400000;}}
     }}catch(const std::exception& e){if(listGeneration==catalogGeneration){diagnostic("catalog",e.what());catalogError=e.what();status=catalogStatus();cacheCatalog();if(waitingForCatalog){waitingForCatalog=false;playerStatus="列表加载失败："+catalogError+"；R 重试，B 返回";controlsUntil=now()+86400000;}}}
     listApi.reset();
    }
-   if(!loading&&tab<Category::Favorites&&!catalog.done&&catalogError.empty()&&now()>=loadAt)fetch();
+   if(!loading&&tab<Category::Favorites&&!catalog.done&&catalogError.empty()&&now()>=loadAt&&
+    (tab==Category::All||items.empty()||waitingForCatalog||(playing&&queueTab==tab&&queueIndex+5>=(int)queue.size())||(!playing&&Grid::endRow(scroll.offset,items.size())+1>=Grid::rows(items.size()))))fetch();
    if(imageJob.valid()&&imageJob.wait_for(std::chrono::seconds(0))==std::future_status::ready){auto p=imageJob.get();auto tex=ui.image(p.second);if(tex.id)covers[p.first]=tex;else failedCovers.insert(p.first);pendingCover.clear();}
    if(!playing&&!imageJob.valid())for(int i=Grid::firstRow(scroll.offset)*Grid::columns;i<std::min((int)items.size(),Grid::endRow(scroll.offset,items.size())*Grid::columns);i++){auto v=items[i];if(v.cover.empty())continue;if(covers.count(v.id)||failedCovers.count(v.id))continue;auto bytes=readFile(root+"cache/"+v.id+".jpg");if(bytes.empty())bytes=readFile("romfs:/covers/"+v.id+".jpg");if(!bytes.empty()){auto tex=ui.image(bytes);if(tex.id){covers[v.id]=tex;continue;}}pendingCover=v.id;imageJob=std::async(std::launch::async,[&api,v]{try{auto b=api.request(v.cover);save(root+"cache/"+v.id+".jpg",b);return std::make_pair(v.id,b);}catch(...){return std::make_pair(v.id,std::string());}});break;}
    if(covers.size()>48){std::set<std::string> visible;int first=std::max(0,Grid::firstRow(scroll.offset)-2)*Grid::columns,last=std::min((int)items.size(),(Grid::endRow(scroll.offset,items.size())+2)*Grid::columns);for(int i=first;i<last;i++)visible.insert(items[i].id);for(auto it=covers.begin();it!=covers.end();)if(!visible.count(it->first)){glDeleteTextures(1,&it->second.id);it=covers.erase(it);}else ++it;}
@@ -219,7 +220,7 @@ int main(int argc,char** argv){
    }
    int w,h;SDL_GL_GetDrawableSize(window,&w,&h);glViewport(0,0,w,h);glClearColor(.055,.065,.09,1);glClear(GL_COLOR_BUFFER_BIT);
    if(playing){mpv_opengl_fbo fbo={0,w,h,0};int flip=1;mpv_render_param rp[]={{MPV_RENDER_PARAM_OPENGL_FBO,&fbo},{MPV_RENDER_PARAM_FLIP_Y,&flip},{MPV_RENDER_PARAM_INVALID,nullptr}};if(!activeUrl.empty()){mpv_render_context_render(render,rp);}glViewport(0,0,w,h);if(now()<controlsUntil||paused||!playerStatus.empty()||menu){ui.rect(0,0,1280,60,0,0,0,.7);ui.text(active.title,30,16,1210);ui.rect(0,598,1280,122,0,0,0,.8);ui.text(playerStatus.empty()?(paused?"已暂停":"正在播放"):playerStatus,40,605,730);ui.rect(800,602,180,38,.15,.23,.34);ui.text(portrait?"Y 恢复方向":"Y 横竖切换",812,609,156);ui.rect(1000,602,240,38,autoplay?.12:.16,autoplay?.32:.20,autoplay?.22:.25);ui.text(autoplay?"X 连播：开":"X 连播：关",1012,609,216);ui.rect(40,650,1200,7,.3,.33,.4);if(duration>0)ui.rect(40,650,1200*std::clamp(position/duration,0.0,1.0),7,.15,.68,1);ui.text(clockText(position)+" / "+clockText(duration)+"   音量 "+std::to_string((int)volume)+"%",40,670,670);ui.text("A 暂停  B 返回  L/R 切换  上下滑切换",680,670,560);}}
-   else {ui.text("抖音原生播放器",40,28,500);ui.text(std::to_string(items.size())+" 个视频",1030,28,210,.5,.72,1);for(int i=0;i<3;i++){ui.rect(40+i*400,85,384,54,i==tab?.19:.11,i==tab?.34:.13,i==tab?.52:.18);ui.text(Category::names[i],60+i*400,100,340);}ui.clip(Grid::left-3,Grid::top-3,Grid::barLeft-Grid::left-5,Grid::viewportHeight+3);for(int i=Grid::firstRow(scroll.offset)*Grid::columns;i<Grid::endRow(scroll.offset,items.size())*Grid::columns;i++){if(i>=(int)items.size())break;float x=Grid::left+(i%Grid::columns)*Grid::columnPitch,y=Grid::top+(i/Grid::columns)*Grid::rowPitch-scroll.offset;ui.rect(x-3,y-3,Grid::cardWidth+6,Grid::cardHeight+6,i==selected?.2:.09,i==selected?.68:.11,i==selected?1:.16);auto it=covers.find(items[i].id);if(it!=covers.end())ui.cover(x,y,Grid::cardWidth,Grid::coverHeight,it->second);else{ui.rect(x,y,Grid::cardWidth,Grid::coverHeight,.12,.16,.23);ui.text("原生视频",x+22,y+(Grid::coverHeight-28)/2,140);}ui.rect(x,y+Grid::coverHeight,Grid::cardWidth,40,.1,.12,.16);ui.text(items[i].title,x+8,y+Grid::coverHeight+8,Grid::cardWidth-16);}ui.clearClip();ui.rect(Grid::barLeft,Grid::top,Grid::barWidth,Grid::trackHeight,.12,.16,.23);ui.rect(Grid::barLeft,Grid::thumbPosition(scroll.offset,items.size()),Grid::barWidth,Grid::thumbSize(items.size()),.25,.58,.85);if(items.empty())ui.text(loading?"正在加载视频列表…":"请导入 playlist.json，或把 MP4 放入 /switch/douyin-native/videos/",350,340,800);ui.text(status,40,654,1150,.6,.7,.82);ui.text("A 播放  X 收藏  L/R 分类  Y 刷新  - 添加直链  + 菜单",40,686,1200,.7,.8,.94);}
+   else {ui.text("抖音原生播放器",40,28,500);ui.text(std::to_string(items.size())+" 个视频",1030,28,210,.5,.72,1);for(int i=0;i<3;i++){ui.rect(40+i*400,85,384,54,i==tab?.19:.11,i==tab?.34:.13,i==tab?.52:.18);ui.text(Category::names[i],60+i*400,100,340);}ui.clip(Grid::left-3,Grid::top-3,Grid::barLeft-Grid::left-5,Grid::viewportHeight+3);for(int i=Grid::firstRow(scroll.offset)*Grid::columns;i<Grid::endRow(scroll.offset,items.size())*Grid::columns;i++){if(i>=(int)items.size())break;float x=Grid::left+(i%Grid::columns)*Grid::columnPitch,y=Grid::top+(i/Grid::columns)*Grid::rowPitch-scroll.offset;ui.rect(x-3,y-3,Grid::cardWidth+6,Grid::cardHeight+6,i==selected?.2:.09,i==selected?.68:.11,i==selected?1:.16);auto it=covers.find(items[i].id);if(it!=covers.end())ui.cover(x,y,Grid::cardWidth,Grid::coverHeight,it->second);else{ui.rect(x,y,Grid::cardWidth,Grid::coverHeight,.12,.16,.23);ui.text("原生视频",x+22,y+(Grid::coverHeight-28)/2,140);}ui.rect(x,y+Grid::coverHeight,Grid::cardWidth,40,.1,.12,.16);ui.text(items[i].title,x+8,y+Grid::coverHeight+8,Grid::cardWidth-16);}ui.clearClip();ui.rect(Grid::barLeft,Grid::top,Grid::barWidth,Grid::trackHeight,.12,.16,.23);ui.rect(Grid::barLeft,Grid::thumbPosition(scroll.offset,items.size()),Grid::barWidth,Grid::thumbSize(items.size()),.25,.58,.85);if(items.empty())ui.text(loading?"正在加载视频列表…":"复制访客配置后按 Y 加载实时推荐，或切换本地视频",350,340,800);ui.text(status,40,654,1150,.6,.7,.82);ui.text("A 播放  X 收藏  L/R 分类  Y 刷新  - 添加直链  + 菜单",40,686,1200,.7,.8,.94);}
    if(menu){ui.rect(0,0,1280,720,0,0,0,.6);ui.rect(330,250,620,180,.12,.16,.23);ui.text(playing?"播放菜单":"退出应用",365,278,550);ui.text(playing?"A 返回视频列表":"A 退出应用",365,332,550);ui.text("B 取消",365,377,550);}
    SDL_GL_SwapWindow(window);if(playing)mpv_render_context_report_swap(render);
   }

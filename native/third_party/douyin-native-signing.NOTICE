@@ -1,0 +1,6 @@
+Algorithm source: Evil0ctal/Douyin_TikTok_Download_API, Apache-2.0.
+https://github.com/Evil0ctal/Douyin_TikTok_Download_API
+Ported from src/dtk/signing/native/abogus.py (blob 25a081e7dc90231f4d8628e1c706c35cbed95c11)
+and src/dtk/signing/native/websign.py (blob 0232355dff1bfe380df41eac8574735e92282bf4).
+Modified: C++/Switch port, native SM3, per-request generation, GET recommendation client.
+Private HAR values, session tokens, browsing snapshots and old signatures are excluded from source distributions.
